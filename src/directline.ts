@@ -187,7 +187,7 @@ export async function openConversation(
   options: DirectLineOptions
 ): Promise<CopilotStudioConversation> {
   const opts: Required<DirectLineOptions> = {
-    userId: "agentqa-bridge",
+    userId: "a2a-bridge",
     turnTimeoutMs: 45_000,
     pollIntervalMs: 400,
     ...options
