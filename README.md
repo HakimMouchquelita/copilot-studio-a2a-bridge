@@ -67,9 +67,18 @@ Si l'agent répond en tenant compte du premier tour, le pont fonctionne.
 ## Exposer publiquement
 
 ```bash
-devtunnel user login
-devtunnel host -p 3000 --allow-anonymous
+devtunnel user login -d
+devtunnel create copilot-bridge -a
+devtunnel port create copilot-bridge -p 3000
+devtunnel host copilot-bridge
 ```
+
+Un tunnel **nommé** garde la même URL publique d'un lancement à l'autre, ce qui
+n'est pas le cas de `devtunnel host -p 3000 --allow-anonymous`. L'URL doit être
+stable, puisqu'elle est communiquée au client A2A.
+
+Démarrer le pont **avant** le tunnel : dans l'ordre inverse, le tunnel ne trouve
+rien sur le port 3000 et renvoie `502` au client.
 
 Reporter l'URL publique dans `PUBLIC_URL`, redémarrer, puis la donner au client
 A2A. Le champ `url` de la carte doit pointer vers l'endpoint de communication,

@@ -31,7 +31,10 @@ const config = {
     "Exposes a published Microsoft Copilot Studio agent as an A2A agent.",
   turnTimeoutMs: Number(process.env.TURN_TIMEOUT_MS ?? 45_000),
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? 400),
-  responseShape: (process.env.RESPONSE_SHAPE ?? "task") as "task" | "message"
+  responseShape: (process.env.RESPONSE_SHAPE ?? "task") as "task" | "message",
+  // Un agent sous test attend toujours le message suivant du persona.
+  // "completed" ferait terminer l'execution du runner des le premier tour.
+  turnState: (process.env.TURN_STATE ?? "input-required") as "input-required" | "completed"
 };
 
 function required(name: string): string {
@@ -79,8 +82,8 @@ const agentCard = {
 //  Etat en memoire
 // ---------------------------------------------------------------------
 
-/** contextId A2A -> conversation Direct Line. */
-const sessions = new Map<string, CopilotStudioConversation>();
+/** contextId A2A -> conversation Direct Line et tache associee. */
+const sessions = new Map<string, { conv: CopilotStudioConversation; taskId: string }>();
 /** taskId -> tache, pour tasks/get et pour retrouver un contexte. */
 const tasks = new Map<string, { contextId: string; task: unknown }>();
 /** Verrou par contextId : un seul tour a la fois sur une conversation. */
@@ -137,19 +140,22 @@ async function handleMessageSend(params: { message?: A2AMessage }) {
   if (!contextId) contextId = randomUUID();
 
   return withLock(contextId, async () => {
-    let session = sessions.get(contextId!);
-    if (!session) {
-      session = await openConversation({
+    let entry = sessions.get(contextId!);
+    if (!entry) {
+      const conv = await openConversation({
         tokenEndpoint: config.tokenEndpoint,
         baseUrl: config.directLineBase,
         turnTimeoutMs: config.turnTimeoutMs,
         pollIntervalMs: config.pollIntervalMs
       });
-      sessions.set(contextId!, session);
-      console.log(`[${contextId}] nouvelle conversation ${session.conversationId}`);
+      // Un seul taskId pour toute la conversation : le client relance la
+      // meme tache, laissee en input-required entre deux tours.
+      entry = { conv, taskId: randomUUID() };
+      sessions.set(contextId!, entry);
+      console.log(`[${contextId}] nouvelle conversation ${conv.conversationId}`);
     }
 
-    const turn = await session.sendTurn(text);
+    const turn = await entry.conv.sendTurn(text);
 
     console.log(
       `[${contextId}] "${text.slice(0, 50)}" -> ${turn.messages.length} message(s), ` +
@@ -159,7 +165,7 @@ async function handleMessageSend(params: { message?: A2AMessage }) {
         `${turn.hasSuggestedActions ? "  +suggestedActions" : ""}`
     );
 
-    const taskId = randomUUID();
+    const taskId = entry.taskId;
     const replyText = turn.text || (turn.timedOut ? "(no reply before timeout)" : "");
 
     const agentMessage = {
@@ -181,7 +187,7 @@ async function handleMessageSend(params: { message?: A2AMessage }) {
       id: taskId,
       contextId,
       status: {
-        state: turn.timedOut ? "failed" : "completed",
+        state: turn.timedOut ? "failed" : config.turnState,
         message: agentMessage,
         timestamp: new Date().toISOString()
       },
@@ -255,5 +261,6 @@ app.listen(config.port, () => {
   console.log(`  URL publiee      ${agentCard.url}`);
   console.log(`  agent card       ${agentCard.url}.well-known/agent-card.json`);
   console.log(`  Direct Line      ${config.directLineBase}`);
-  console.log(`  forme de reponse ${config.responseShape}\n`);
+  console.log(`  forme de reponse ${config.responseShape}`);
+  console.log(`  etat par tour    ${config.turnState}\n`);
 });
