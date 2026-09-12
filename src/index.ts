@@ -216,8 +216,15 @@ app.use(express.json({ limit: "1mb" }));
 // La spec 0.3.0 publie la carte sur agent-card.json.
 // Le client A2A de Copilot Studio la cherche historiquement sur agent.json.
 // On sert les deux, ca ne coute rien.
-app.get("/.well-known/agent-card.json", (_req, res) => res.json(agentCard));
-app.get("/.well-known/agent.json", (_req, res) => res.json(agentCard));
+function serveCard(req: express.Request, res: express.Response) {
+  console.log(
+    `[card] ${req.path}  accept=${req.get("accept") ?? "-"}  ua=${req.get("user-agent") ?? "-"}`
+  );
+  res.json(agentCard);
+}
+
+app.get("/.well-known/agent-card.json", serveCard);
+app.get("/.well-known/agent.json", serveCard);
 
 app.get("/health", (_req, res) =>
   res.json({ ok: true, sessions: sessions.size, tasks: tasks.size })
