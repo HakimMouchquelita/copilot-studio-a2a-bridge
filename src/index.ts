@@ -31,6 +31,7 @@ const config = {
     "Exposes a published Microsoft Copilot Studio agent as an A2A agent.",
   turnTimeoutMs: Number(process.env.TURN_TIMEOUT_MS ?? 45_000),
   pollIntervalMs: Number(process.env.POLL_INTERVAL_MS ?? 400),
+  quietPeriodMs: Number(process.env.QUIET_PERIOD_MS ?? 1_500),
   responseShape: (process.env.RESPONSE_SHAPE ?? "task") as "task" | "message",
   // Un agent sous test attend toujours le message suivant du persona.
   // "completed" ferait terminer l'execution du runner des le premier tour.
@@ -146,7 +147,8 @@ async function handleMessageSend(params: { message?: A2AMessage }) {
         tokenEndpoint: config.tokenEndpoint,
         baseUrl: config.directLineBase,
         turnTimeoutMs: config.turnTimeoutMs,
-        pollIntervalMs: config.pollIntervalMs
+        pollIntervalMs: config.pollIntervalMs,
+        quietPeriodMs: config.quietPeriodMs
       });
       // Un seul taskId pour toute la conversation : le client relance la
       // meme tache, laissee en input-required entre deux tours.
@@ -160,7 +162,7 @@ async function handleMessageSend(params: { message?: A2AMessage }) {
     console.log(
       `[${contextId}] "${text.slice(0, 50)}" -> ${turn.messages.length} message(s), ` +
         `${turn.activityCount} activite(s) [${turn.activityTypes.join(",")}], ` +
-        `${turn.elapsedMs} ms${turn.timedOut ? "  TIMEOUT" : ""}` +
+        `${turn.elapsedMs} ms, fin: ${turn.endedBy}` +
         `${turn.hasAttachments ? "  +attachments" : ""}` +
         `${turn.hasSuggestedActions ? "  +suggestedActions" : ""}`
     );

@@ -111,6 +111,10 @@ le serveur est conforme face à un client A2A tiers.
 - La fin d'un tour est signalée par un `event` nommé `turn.complete`, dont le
   `replyToId` pointe vers le message déclencheur. Le pont s'en sert au lieu
   d'attendre un délai fixe.
+- **Tous les agents n'émettent pas `turn.complete`.** Vérifié sur deux agents
+  publiés : le premier l'émet, le second ne renvoie que l'écho et la réponse.
+  À défaut, le pont clôt le tour après une courte période de silence
+  (`QUIET_PERIOD_MS`), ce qui reste très inférieur au délai maximum.
 - Direct Line renvoie en écho le message de l'utilisateur et réécrit son
   `from.id`. L'écho est filtré sur l'identifiant d'activité retourné par le
   POST, seul critère fiable.

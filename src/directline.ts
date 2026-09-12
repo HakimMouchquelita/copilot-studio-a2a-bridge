@@ -16,6 +16,8 @@ export interface DirectLineOptions {
   userId?: string;
   turnTimeoutMs?: number;
   pollIntervalMs?: number;
+  /** Silence apres la reponse valant fin de tour quand turn.complete manque. */
+  quietPeriodMs?: number;
 }
 
 export interface TurnResult {
@@ -28,8 +30,10 @@ export interface TurnResult {
   /** Types d'activites rencontres, pour le diagnostic. */
   activityTypes: string[];
   elapsedMs: number;
-  /** Vrai si aucun turn.complete n'est arrive dans le delai imparti. */
+  /** Vrai si le tour s'est termine sans aucune reponse de l'agent. */
   timedOut: boolean;
+  /** Ce qui a clos le tour, utile pour diagnostiquer un agent lent. */
+  endedBy: "turn.complete" | "quiet" | "timeout";
   hasAttachments: boolean;
   hasSuggestedActions: boolean;
 }
@@ -122,8 +126,21 @@ export class CopilotStudioConversation {
     let activityCount = 0;
     let hasAttachments = false;
     let hasSuggestedActions = false;
+    let lastAgentActivityAt = 0;
 
     const deadline = startedAt + this.opts.turnTimeoutMs;
+
+    const result = (endedBy: TurnResult["endedBy"]): TurnResult => ({
+      text: messages.join("\n\n"),
+      messages,
+      activityCount,
+      activityTypes: [...new Set(activityTypes)],
+      elapsedMs: Date.now() - startedAt,
+      timedOut: endedBy === "timeout" && messages.length === 0,
+      endedBy,
+      hasAttachments,
+      hasSuggestedActions
+    });
 
     while (Date.now() < deadline) {
       const res = await this.readActivities();
@@ -136,6 +153,7 @@ export class CopilotStudioConversation {
         if (a.id && this.sentIds.has(a.id)) continue;
 
         activityCount++;
+        lastAgentActivityAt = Date.now();
         if (a.type) activityTypes.push(a.type);
 
         if (a.type === "message") {
@@ -149,33 +167,25 @@ export class CopilotStudioConversation {
           // tolerant : un turn.complete sans replyToId termine aussi
           // le tour plutot que de laisser le pont bloquer.
           if (!a.replyToId || !triggerId || a.replyToId === triggerId) {
-            return {
-              text: messages.join("\n\n"),
-              messages,
-              activityCount,
-              activityTypes: [...new Set(activityTypes)],
-              elapsedMs: Date.now() - startedAt,
-              timedOut: false,
-              hasAttachments,
-              hasSuggestedActions
-            };
+            return result("turn.complete");
           }
         }
+      }
+
+      // Tous les agents n'emettent pas turn.complete : verifie contre un
+      // agent reel le 13 septembre 2026. A defaut, une periode de silence
+      // apres la reponse clot le tour, bien avant le timeout.
+      if (
+        messages.length > 0 &&
+        Date.now() - lastAgentActivityAt >= this.opts.quietPeriodMs
+      ) {
+        return result("quiet");
       }
 
       await sleep(this.opts.pollIntervalMs);
     }
 
-    return {
-      text: messages.join("\n\n"),
-      messages,
-      activityCount,
-      activityTypes: [...new Set(activityTypes)],
-      elapsedMs: Date.now() - startedAt,
-      timedOut: true,
-      hasAttachments,
-      hasSuggestedActions
-    };
+    return result("timeout");
   }
 }
 
@@ -190,6 +200,7 @@ export async function openConversation(
     userId: "a2a-bridge",
     turnTimeoutMs: 45_000,
     pollIntervalMs: 400,
+    quietPeriodMs: 1_500,
     ...options
   };
 
