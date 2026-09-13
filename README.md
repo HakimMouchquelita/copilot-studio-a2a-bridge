@@ -91,6 +91,37 @@ agent → Se connecter à un agent externe → Agent2Agent, en saisissant l'URL
 publique. Si Copilot Studio récupère le nom et la description depuis la carte,
 le serveur est conforme face à un client A2A tiers.
 
+## Assertion sur la base
+
+Un évaluateur LLM note une conversation. `assert-dataverse.ps1` note la base de
+données. « L'agent a été poli » se discute ; « l'enregistrement existe » non.
+
+```powershell
+.\scripts\demo-assertion.ps1 -BridgeUri http://localhost:3000
+```
+
+Le script tient une conversation de remboursement à travers le pont, puis
+relit Dataverse en OData pour vérifier que la ligne annoncée par l'agent a
+réellement été écrite. Le verdict est `ASSERTION PASSED` ou `ASSERTION FAILED`,
+et le code de sortie suit, donc la chose s'intègre à une CI.
+
+La lecture se fait avec un **service principal en lecture seule**, distinct de
+l'identité de l'agent : le vérificateur n'a pas le droit d'écrire ce qu'il
+vérifie. Renseigner `DV_TENANT_ID`, `DV_CLIENT_ID` et `DV_CLIENT_SECRET` dans
+la session ; à défaut le script bascule sur une connexion interactive.
+
+```powershell
+# Une requête libre, pour inspecter la table
+.\scripts\assert-dataverse.ps1 -EntitySet aqa_refundrequests `
+    -Select "aqa_name,aqa_ordernumber,aqa_customername" `
+    -OrderBy "createdon desc" -Top 8
+```
+
+C'est ce que ne couvre aucune évaluation conversationnelle : un agent peut
+mener un échange irréprochable, confirmer la création, répéter correctement le
+numéro de commande — et écrire une valeur fausse dans le champ. La conversation
+reste parfaite, la donnée est corrompue. Seule une assertion sur la base le voit.
+
 ## Options
 
 | Variable | Rôle |

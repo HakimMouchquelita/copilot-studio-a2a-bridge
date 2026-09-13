@@ -10,8 +10,10 @@
 #
 #  Usage:
 #    .\scripts\assert-dataverse.ps1 -EntitySet accounts -Top 3
-#    .\scripts\assert-dataverse.ps1 -EntitySet cr717_refundrequests `
-#        -Filter "cr717_ordernumber eq '12345ABCDE'" -ExpectAtLeast 1
+#    .\scripts\assert-dataverse.ps1 -EntitySet aqa_refundrequests `
+#        -Filter "aqa_ordernumber eq '12345ABCDE'" -ExpectAtLeast 1
+#    .\scripts\assert-dataverse.ps1 -EntitySet aqa_refundrequests `
+#        -Select "aqa_name,aqa_ordernumber" -OrderBy "createdon desc" -Top 8
 # =====================================================================
 
 param(
