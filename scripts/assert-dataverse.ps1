@@ -19,6 +19,7 @@ param(
     [string] $EntitySet     = "accounts",
     [string] $Filter,
     [string] $Select,
+    [string] $OrderBy,
     [int]    $Top           = 5,
     [int]    $ExpectAtLeast = 0
 )
@@ -68,8 +69,9 @@ else {
 
 # --- 2. Query -------------------------------------------------------
 $query = @("`$top=$Top")
-if ($Select) { $query += "`$select=$Select" }
-if ($Filter) { $query += "`$filter=$Filter" }
+if ($Select)  { $query += "`$select=$Select" }
+if ($Filter)  { $query += "`$filter=$Filter" }
+if ($OrderBy) { $query += "`$orderby=$OrderBy" }
 $uri = "$OrgUrl/api/data/v9.2/$EntitySet" + "?" + ($query -join "&")
 
 Write-Host "GET $uri" -ForegroundColor DarkGray
@@ -84,7 +86,12 @@ $r = Invoke-RestMethod -Method Get -Uri $uri -Headers @{
 # --- 3. Verdict -----------------------------------------------------
 $count = @($r.value).Count
 Write-Host ""
-$r.value | Format-Table -AutoSize
+# Dataverse returns @odata.etag and the primary key even with $select.
+if ($Select) {
+    $r.value | Format-Table -AutoSize -Property ($Select -split '\s*,\s*')
+} else {
+    $r.value | Format-Table -AutoSize
+}
 
 if ($count -ge $ExpectAtLeast -and $ExpectAtLeast -gt 0) {
     Write-Host "ASSERTION PASSED - $count matching record(s) in Dataverse" -ForegroundColor Green
